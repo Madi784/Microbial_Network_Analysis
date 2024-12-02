@@ -1,7 +1,11 @@
 Microbial Network Analysis Using SPIEC-EASI
-This repository contains code to construct microbial networks using SPIEC-EASI (SParse InversE Covariance Estimation for Ecological Association Inference). The methodology ensures parsimony and robustness by avoiding detection of spurious correlations between OTUs (Operational Taxonomic Units). It employs centered log-ratio (CLR) transformations and the Meinshausen-Bühlmann (MB) method to infer ecological associations.
+
+This repository contains code to construct microbial networks using SPIEC-EASI (SParse InversE Covariance Estimation for Ecological Association Inference). 
+The methodology ensures parsimony and robustness by avoiding detection of spurious correlations between OTUs (Operational Taxonomic Units). 
+It employs centered log-ratio (CLR) transformations and the Meinshausen-Bühlmann (MB) method to infer ecological associations.
 
 Features
+
 Data preparation: Import, clean, and organize OTU, taxonomy, sample, and environmental data.
 Network construction: Create microbial networks for specific sample groups using SPIEC-EASI with MB.
 Network analysis: Compute modularity, topological attributes, and edge/node comparisons.
@@ -9,6 +13,7 @@ Visualization: Venn diagrams, heatmaps, and robustness metrics for ecological in
 Output: Export node and edge tables for further exploration.
 
 Prerequisites
+
 Software
 R (>= 4.0): Ensure R is installed on your system.
 R Libraries:
