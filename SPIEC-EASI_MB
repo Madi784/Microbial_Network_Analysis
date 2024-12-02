@@ -1,0 +1,308 @@
+# To construct the microbial network analysis, we used SPIEC-EASI (SParse InversE Covariance Estimation for Ecological Association Inference, pronounced speakeasy) (Kurtz et al. 2015) to avoid the detection of correlated but indirectly connected OTUs and thus ensures the parsimony of the resulting network model. 
+#Using SPIEC-EASI inference, first, a centered log-ratio (CLR) transformation was performed to the OTU data to address compositionality. 
+#Then, Meinshausen-Bühlmann (MB) method (Meinshausen and Bühlmann 2006) as the specific approach within SPIEC-EASI was used to estimate the interaction graph from the transformed data using neighborhood selection. 
+#The MB method performs penalized linear regression for each node in the network with all other nodes as potential predictors to estimate the strength and direction of association between nodes. 
+#The regularization parameter (λ) controlled the sparsity of the model. We chose the Stability Approach to Regularization Selection (StARS) (Liu et al. 2010) as the selection criterion for choosing the optimal lambda value and selecting a stable and reproducible network.
+
+# Setting Up the Working Directory and Reading Data Files
+
+setwd ("Z:/")
+otu_table<-read.table("otu_DNA.txt", sep = '\t' )
+taxonomy_table<-read.table("taxonomy_table.txt", sep = '\t' )
+sample_table<-read.table("sample_table_DNA.txt", header = T, sep = '\t' )
+env_table <-read.table("env_DNA.txt", header = T, sep = '\t' )
+
+
+#Setting Row and Column Names
+#Ensures consistency by matching OTUs and sample IDs across all datasets.
+
+rownames(otu_table)<-taxonomy_table$otu
+colnames(otu_table)<- sample_table$SampleID
+
+rownames(taxonomy_table)<-taxonomy_table$otu
+colnames(taxonomy_table) <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species","otu")
+
+rownames(sample_table)<- colnames(otu_table)
+rownames(env_table)<-colnames(otu_table)
+
+#Make sure that the data types are all data.frame
+
+class(otu_table)
+class(taxonomy_table)
+class(sample_table)
+
+#create a microtable object with more information
+
+DNA_dataset<- microtable$new(sample_table = sample_table, otu_table = otu_table, tax_table = taxonomy_table)
+DNA_dataset
+
+#Tidying the Dataset
+#To make the OTU and sample information consistent across all files in the dataset object,  use function tidy_dataset to trim the dataset.
+
+DNA_dataset$tidy_dataset()
+print(DNA_dataset)
+class(DNA_dataset)
+
+#Sum the species number for each sample
+
+DNA_dataset$sample_sums()
+
+#Then let's use sample_sums() to check the sequence numbers in each sample.
+
+DNA_dataset$sample_sums() %>% range
+
+#Summarizing OTU and Taxa
+#Sum the species number for each taxa.
+
+DNA_dataset$taxa_sums()
+DNA_dataset$sample_names()
+
+#Let's calculate the taxa abundance at each taxonomic rank
+
+DNA_dataset$cal_abund()
+class(DNA_dataset$taxa_abund)
+
+#The function save_abund() can be used to save the taxa abundance file to a local place easily. 
+
+DNA_dataset$save_abund(dirpath = "taxa_abund_DNA", sep = ",")
+
+#################Constructing Networks for Specific Groups
+DNA_network <- list()
+
+#------------ select samples of "DNA_Conv_BS" group
+
+tmp <- clone(DNA_dataset)
+tmp$sample_table %<>% subset(Group == "DNA_Conv_BS")
+tmp$tidy_dataset()
+tmp <- trans_network$new(dataset = tmp, cor_method = NULL, taxa_level = "OTU", filter_thres = 0.0002)
+tmp$cal_network(network_method = "SpiecEasi", SpiecEasi_method = "mb",lambda.min.ratio=0.01, nlambda=100, pulsar.params=list(rep.num=50),
+                sel.criterion = "stars",verbose = TRUE, pulsar.select = TRUE, add_taxa_name = c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species","otu"),delete_unlinked_nodes = TRUE)
+
+# put the network into the list
+DNA_network$DNA_Conv_BS <- tmp
+
+#---------- select samples of "DNA_Conv_Rhiz" group
+
+tmp <- clone(DNA_dataset)
+tmp$sample_table %<>% subset(Group == "DNA_Conv_Rhiz")
+tmp$tidy_dataset()
+tmp <- trans_network$new(dataset = tmp, cor_method = NULL, taxa_level = "OTU", filter_thres = 0.0002)
+tmp$cal_network(network_method = "SpiecEasi", SpiecEasi_method = "mb",lambda.min.ratio=0.01, nlambda=100, pulsar.params=list(rep.num=50),
+                sel.criterion = "stars",verbose = TRUE, pulsar.select = TRUE, add_taxa_name = c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species","otu"),delete_unlinked_nodes = TRUE)
+
+# put the network into the list
+DNA_network$DNA_Conv_Rhiz <- tmp
+
+#------------- select samples of "DNA_Div_BS" group
+
+tmp <- clone(DNA_dataset)
+tmp$sample_table %<>% subset(Group == "DNA_Div_BS")
+tmp$tidy_dataset()
+tmp <- trans_network$new(dataset = tmp, cor_method = NULL, taxa_level = "OTU", filter_thres = 0.0002)
+tmp$cal_network(network_method = "SpiecEasi", SpiecEasi_method = "mb",lambda.min.ratio=0.01, nlambda=100, pulsar.params=list(rep.num=50),
+                sel.criterion = "stars",verbose = TRUE, pulsar.select = TRUE, add_taxa_name = c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species","otu"),delete_unlinked_nodes = TRUE)
+# put the network into the list
+DNA_network$DNA_Div_BS <- tmp
+
+#----------- select samples of "DNA_Div_Rhiz" group
+
+tmp <- clone(DNA_dataset)
+tmp$sample_table %<>% subset(Group == "DNA_Div_Rhiz")
+tmp$tidy_dataset()
+tmp <- trans_network$new(dataset = tmp, cor_method = NULL, taxa_level = "OTU", filter_thres = 0.0002)
+tmp$cal_network(network_method = "SpiecEasi", SpiecEasi_method = "mb",lambda.min.ratio=0.01, nlambda=100, pulsar.params=list(rep.num=50),
+                sel.criterion = "stars",verbose = TRUE, pulsar.select = TRUE, add_taxa_name = c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species","otu"),delete_unlinked_nodes = TRUE)
+# put the network into the list
+DNA_network$DNA_Div_Rhiz <- tmp
+
+#Now we have the list DNA_network
+
+#Calculate Network modularity for all networks
+
+DNA_network %<>% cal_module(undirected_method = "cluster_fast_greedy")
+
+#Calculate topological attributes for all networks
+
+tmp <- cal_network_attr(DNA_network)
+
+write_xlsx(tmp,"Z:/")
+
+#After using cal_network function, the res_network (i.e., the network with igraph class) is stored in the trans_network
+
+DNA_network %<>% get_node_table(node_roles = TRUE) %>% get_edge_table
+
+#Extract Node tables
+
+output_directory <- "Z:/"
+desired_order <- c("Conv_BS", "Conv_Rhiz", "Div_BS", "Div_Rhiz")
+
+# Iterate through each network in the list
+for (i in seq_along(DNA_network)) {
+  # Get the current network
+  current_network <- DNA_network[[i]]
+  
+  # Extract node table from the current network
+  node_table <- current_network$res_node_table  # Corrected name
+  
+  # Formulate the desired filename
+  desired_filename <- paste0("DNA_node_table_Pearson_RMT_", desired_order[i], ".xlsx")
+  node_filename <- file.path(output_directory, desired_filename)
+  
+  # Export node table to Excel
+  write.xlsx(node_table, file = node_filename, rowNames = FALSE)
+}
+
+
+
+#Extract edge tables
+
+output_directory <- "Z:/"
+desired_order <- c("Conv_BS", "Conv_Rhiz", "Div_BS", "Div_Rhiz")
+
+# Iterate through each network in the list
+for (i in seq_along(DNA_network)) {
+  # Get the current network
+  current_network <- DNA_network[[i]]
+  
+  # Extract node table from the current network
+  edge_table <- current_network$res_edge_table  # Corrected name
+  
+  # Formulate the desired filename
+  desired_filename <- paste0("DNA_edge_table_Pearson_RMT_", desired_order[i], ".xlsx")
+  edge_filename <- file.path(output_directory, desired_filename)
+  
+  # Export node table to Excel
+  write.xlsx(edge_table, file = edge_filename, rowNames = FALSE)
+}
+
+#Compare nodes across networks
+#The nodes in all the networks can be converted to a new microtable object by using the node_comp function of meconetcomp package. Then, it is easy to analyse the nodes overlap with trans_venn class.
+
+tiff("Compare_nodes_across_networks.tiff", width = 6, height =5, units = 'in', res = 300)
+tmp <- node_comp(DNA_network, property = "name")
+# obtain nodes intersection
+tmp1 <- trans_venn$new(tmp, ratio = "numratio")
+tmp1$plot_venn(fill_color = FALSE)
+
+dev.off()
+
+#Compare edges across networks
+
+tiff("Compare_edges_across_networks.tiff", width = 6, height =5, units = 'in', res = 300)
+tmp <- edge_comp(DNA_network)
+# obtain nodes intersection
+tmp1 <- trans_venn$new(tmp, ratio = "numratio")
+tmp1$plot_venn(fill_color = FALSE)
+
+dev.off()
+
+#Extract overlapped edges of networks to a new network
+
+#first obtain edges distribution and intersection
+tmp <- edge_comp(DNA_network)
+tmp1 <- trans_venn$new(tmp)
+# convert intersection result to a microtable object
+tmp2 <- tmp1$trans_comm()
+# extract the intersection of all the four networks 
+# please use colnames(tmp2$otu_table) to find the required name
+Intersec_all <- subset_network(DNA_network, venn = tmp2, name = "DNA_Conv_BS&DNA_Conv_Rhiz&DNA_Div_BS&DNA_Div_Rhiz")
+# Intersec_all is a trans_network object
+# for example, save Intersec_all as gexf format
+Intersec_all$save_network("overlapped_edges_of_all_DNA_networks.gexf")
+
+#Compare node sources of edges across networks
+
+#To know which taxa constitute the nodes in edges is important in understanding species co‐occurrence patterns and answering ecological questions. In other words, how many linked nodes of positive edges come from different phyla or the same phyla
+
+DNA_network_edgetax <- edge_tax_comp(DNA_network, taxrank = "Phylum", label = "+", rel = TRUE)
+# filter the features with small number
+DNA_network_edgetax <- DNA_network_edgetax[apply(DNA_network_edgetax, 1, mean) > 0.01, ]
+# visualization
+g1 <- pheatmap::pheatmap(DNA_network_edgetax, display_numbers = TRUE)
+ggsave("DNA_edge_tax_comp_Pearson_RMT_2.tiff", g1, width = 9, height = 7)
+
+#Robustness of networks
+tmp <- robustness$new(DNA_network, remove_strategy = c("edge_rand", "edge_strong", "node_degree_high"), 
+                      remove_ratio = seq(0, 0.75, 0.1), measure = c("Eff"), run = 10)
+View(tmp$res_table)
+
+tiff("Robustness_of_DNA_networks_MB_2.tiff", width = 7.5, height =3, units = 'in', res = 600)
+plot <- tmp$plot(linewidth = 0.5,show_point = TRUE,point_size = 1,point_alpha = 0.6,show_errorbar = TRUE,errorbar_size = 2,errorbar_width = 0.2,)
+plot <- plot + labs(title="Networks robustness (SPEIC-EASI-MB)")+ 
+  scale_linetype_manual(labels = c(name = "Network","Conventional bulk soil", "Conventional rhizosphere", "Diversified bulk soil","Diversified rhizosphere"))
+print(plot)
+
+dev.off()
+
+write_xlsx(tmp$res_table,"Z:/")
+
+#Vulnerability of all nodes
+?vulnerability
+#From v0.4.0, the vulnerability of nodes can be calculated with the vulnerability function.
+#The vulnerability of one node is defined as the efficiency of network after removing this targeted node (Yuan et al. 2021).
+
+vul_table <- vulnerability(DNA_network)
+View(vul_table)
+
+write_xlsx(vul_table,"Z:")
+
+#----------Cohesion
+
+#The cohesion is a method for quantifying the connectivity of microbial communities (Herren and McMahon 2017).
+#‘cohesion’ metrics quantify the connectivity of each sampled community.
+#one metric of cohesion stems from positive correlations, and one metric stems from negative correlations.
+#Cohesion= abundance*connectedness
+#The cohesion metrics contain information about the connectivity of microbial communities, which has been previously hypothesized to influence community dynamics (MacArthur, 1955; May,1972; Nilsson and McCann, 2016).
+
+#default "c_pos"; "c_pos" or "c_neg" in the res_list$sample; "r_pos" or "r_neg" in the res_list$feature.
+
+library(writexl)
+
+??cohesionclass
+
+t1 <- cohesionclass$new(DNA_network)
+
+View(t1$res_list$sample)
+write_xlsx(t1$res_list$sample,"Z:/")
+
+View(t1$res_list$feature)
+write_xlsx(t1$res_list$feature,"Z:/")
+
+library(meconetcomp)
+library(ggplot2)
+
+t1 <- cohesionclass$new(DNA_network)
+# Assuming t1 is already defined
+t1$cal_diff(measure = "c_pos", method = "anova")
+
+# Open the tiff device
+tiff("cohesion_MB_c_pos_2.tiff", width = 4, height = 4, units = 'in', res = 600)
+
+# Generate the plot
+plot <- t1$plot(measure = "c_pos")
+
+# Modify y-axis label
+plot <- plot + 
+  scale_x_discrete(labels = c("DNA_Conv_BS" = "Conventional bulk soil", "DNA_Conv_Rhiz" = "Conventional rhizosphere", "DNA_Div_BS" = "Diversified bulk soil","DNA_Div_Rhiz" = "Diversified rhizosphere" )) +
+  ylab("Positive cohesion (SPIEC-EASI_MB)") +
+  theme(axis.text.x = element_text(size = 8, angle = 45, hjust = 1),  # Adjust the size and angle as needed
+        axis.text.y = element_text(size = 8),  # Adjust the size as needed
+        axis.title.y = element_text(size = 10))  # Adjust the size as needed
+
+
+# Save the modified plot
+print(plot)
+
+# Close the tiff device
+dev.off()
+
+
+
+
+
+
+
+
+
+
+
